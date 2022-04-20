@@ -1,0 +1,1352 @@
+
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @PATH := '\/tests' *)
+(* @OBJECTFLAGS := '0, 8' *)
+(* @SYMFILEFLAGS := '2048' *)
+FUNCTION_BLOCK testButtonPressed
+VAR_INPUT
+	el : eLock;
+	cdt : SystemTimeDate;
+	lock : REAL;
+END_VAR
+VAR_OUTPUT
+	result : INT;
+END_VAR
+VAR
+	pass : INT := 1;
+
+	lockAfterPress, lockAfterTimeout : REAL;
+	beepAfterPress, beepAfterBeepPeriod, beepAfterTimeout : BOOL;
+	displayLinesAfterPress, displayLinesAfterTimeout : DISPLAY_LINES;
+
+	tonLock, tonBeepPeriod : TON;
+	beepTrig : R_TRIG;
+END_VAR
+VAR CONSTANT
+	lock_timeout : TIME := t#1s;
+	beep_half_period : TIME := t#200ms;
+END_VAR
+
+(* @END_DECLARATION := '0' *)
+
+cdt.Year := 2022;
+cdt.Month := 4;
+cdt.Day := 5;
+cdt.Hour := 17;
+cdt.Minute := 46;
+cdt.Second := 33;
+
+el(
+	button := SEL(pass = 1, FALSE, TRUE),
+	lock_timeout := lock_timeout, beep_half_period := beep_half_period, currentDateTime := cdt,
+	lock := lock, lines := displayLines
+);
+IF NOT beepTrig.Q THEN
+	beepTrig(clk := el.beep);
+END_IF
+
+IF pass = 2 THEN
+
+	lockAfterPress := lock;
+	beepAfterPress := beepTrig.Q;
+	displayLinesAfterPress := displayLines;
+
+ELSIF pass > 2 THEN
+
+	tonBeepPeriod(in := TRUE, pt := (beep_half_period * 2) + t#50ms);
+	IF tonBeepPeriod.Q THEN
+		tonBeepPeriod(in := FALSE);
+		beepAfterBeepPeriod := beepTrig.Q;
+	END_IF
+
+	tonLock(in := TRUE, pt := lock_timeout + t#50ms);
+	IF tonLock.Q  THEN
+		tonLock(in := FALSE);
+
+		lockAfterTimeout := lock;
+		beepAfterTimeout := el.beep;
+		displayLinesAfterTimeout := displayLines;
+
+		result := SEL(
+			lockAfterPress = 1.0 AND NOT beepAfterPress AND displayLinesAfterPress[0] = 'Дверь открыта   ' AND displayLinesAfterPress[1] = '                ' AND
+			beepAfterBeepPeriod AND
+			lockAfterTimeout = 0 AND NOT beepAfterTimeout AND displayLinesAfterTimeout[0] = '05.04.2022      ' AND displayLinesAfterTimeout[1] = '17:46:33        ',
+			-1, 1
+		);
+
+	END_IF
+END_IF
+
+pass := pass + 1;
+
+
+
+
+
+
+
+END_FUNCTION_BLOCK
+
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @PATH := '\/tests' *)
+(* @OBJECTFLAGS := '0, 8' *)
+(* @SYMFILEFLAGS := '2048' *)
+FUNCTION testInitialState : INT
+VAR
+	el : eLock;
+	cdt : SystemTimeDate;
+	lock : REAL;
+END_VAR
+
+(* @END_DECLARATION := '0' *)
+
+cdt.Year := 2022;
+cdt.Month := 4;
+cdt.Day := 5;
+cdt.Hour := 17;
+cdt.Minute := 46;
+cdt.Second := 33;
+
+el(
+	button := FALSE, lock_timeout := t#1s, beep_half_period := t#200ms, currentDateTime := cdt,
+	lock := lock, lines := displayLines
+);
+
+testInitialState := SEL(lock = 0 AND displayLines[0] = '05.04.2022      ' AND displayLines[1] = '17:46:33        ' AND NOT el.beep, -1, 1);
+
+END_FUNCTION
+
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @PATH := '\/tests' *)
+(* @OBJECTFLAGS := '0, 8' *)
+(* @SYMFILEFLAGS := '2048' *)
+(* программа для запуска тестов *)
+PROGRAM tests
+VAR
+	testInitialStateOk : INT;
+
+	tBp : testButtonPressed;
+	testButtonPressedOk : INT;
+END_VAR
+
+(* @END_DECLARATION := '0' *)
+
+IF testInitialStateOk = 0 THEN
+	testInitialStateOk := testInitialState();
+END_IF
+
+IF testButtonPressedOk = 0 THEN
+	tBp();
+	testButtonPressedOk := tBp.result;
+END_IF
+
+END_PROGRAM
+
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @PATH := '' *)
+(* @OBJECTFLAGS := '0, 8' *)
+(* @SYMFILEFLAGS := '2048' *)
+(* формирует строковое представление даты и времени в формате "дд.мм.гггг\nчч:мм:сс" для вывода на 2-х строчный дисплей *)
+FUNCTION_BLOCK CurrentTimeDateBuilder
+VAR_INPUT
+	cdt: SystemTimeDate;
+END_VAR
+VAR_IN_OUT
+	lines : DISPLAY_LINES;
+END_VAR
+
+(* @END_DECLARATION := '0' *)
+
+lines[0] := '';
+
+IF cdt.Day < 10 THEN
+	lines[0] := CONCAT(lines[0], '0');
+END_IF
+lines[0] := CONCAT(lines[0], UINT_TO_STRING(cdt.Day));
+
+lines[0] := CONCAT(lines[0], '.');
+
+IF cdt.Month < 10 THEN
+	lines[0] := CONCAT(lines[0], '0');
+END_IF
+lines[0] := CONCAT(lines[0], UINT_TO_STRING(cdt.Month));
+
+lines[0] := CONCAT(lines[0], '.');
+
+lines[0] := CONCAT(lines[0], UINT_TO_STRING(cdt.Year));
+
+lines[1] := '';
+
+IF cdt.Hour < 10 THEN
+	lines[1] := CONCAT(lines[1], '0');
+END_IF
+lines[1] := CONCAT(lines[1], UINT_TO_STRING(cdt.Hour));
+
+lines[1] := CONCAT(lines[1], ':');
+
+IF cdt.Minute < 10 THEN
+	lines[1] := CONCAT(lines[1], '0');
+END_IF
+lines[1] := CONCAT(lines[1], UINT_TO_STRING(cdt.Minute));
+
+lines[1] := CONCAT(lines[1], ':');
+
+IF cdt.Second < 10 THEN
+	lines[1] := CONCAT(lines[1], '0');
+END_IF
+lines[1] := CONCAT(lines[1], UINT_TO_STRING(cdt.Second));
+
+lines[0] := CONCAT(lines[0], '      ');
+lines[1] := CONCAT(lines[1], '        ');
+
+END_FUNCTION_BLOCK
+
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @PATH := '' *)
+(* @OBJECTFLAGS := '0, 8' *)
+(* @SYMFILEFLAGS := '2048' *)
+FUNCTION_BLOCK eLock
+VAR_INPUT
+	button : BOOL; (* нажата кнопка открывания двери *)
+	lock_timeout : TIME; (* время открытия замка *)
+	beep_half_period : TIME; (* полупериод звукового сигнала *)
+	currentDateTime : SystemTimeDate; (* текущие дата и время для вывода на дисплей *)
+END_VAR
+VAR_IN_OUT
+	lock : REAL; (* 1 - открыть замок, 0 - закрыть *)
+	lines : DISPLAY_LINES; (* строки для вывода на дисплей *)
+END_VAR
+VAR_OUTPUT
+	beep : BOOL; (* true - включить звуковой сигнал на время beep_half_period *)
+END_VAR
+VAR
+	state : INT;
+	lock_timer, beep_timer : TON;
+	dtb : CurrentTimeDateBuilder;
+END_VAR
+
+
+(* @END_DECLARATION := '0' *)
+
+CASE state OF
+0:
+	lock := 0;
+	beep := FALSE;
+	dtb(cdt := currentDateTime, lines := lines);
+
+	IF button THEN
+		state := 1;
+	END_IF
+1:
+	lock := 1.0;
+	lines[0] :=  'Дверь открыта   ';
+	lines[1] := '                ';
+
+	lock_timer(pt := lock_timeout, in := TRUE);
+	beep_timer(pt := beep_half_period * 2, in := TRUE);
+
+	IF lock_timer.Q THEN
+		lock_timer(in := FALSE);
+		beep_timer(in := FALSE);
+		state := 0;
+	ELSE
+		IF beep_timer.Q THEN
+			beep := TRUE;
+			beep_timer(in := FALSE);
+		ELSE
+			beep := FALSE;
+		END_IF;
+	END_IF
+
+END_CASE
+
+END_FUNCTION_BLOCK
+
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @PATH := '' *)
+(* @OBJECTFLAGS := '0, 8' *)
+(* @SYMFILEFLAGS := '2048' *)
+(* Возвращает текущее системное время ПЛК, используя библиотеку SysLibTime *)
+FUNCTION GetCurrentTimeDate : SystemTimeDate
+VAR
+	ctex : CurTimeEx;
+	syt: SysTime64;
+	cdt: SystemTimeDate;
+END_VAR
+(* @END_DECLARATION := '0' *)
+
+syt.ulHigh := 0;
+syt.ulLow := 0;
+
+cdt.Year := 0;
+cdt.Month := 0;
+cdt.Day := 0;
+cdt.DayOfWeek := 0;
+cdt.Hour := 0;
+cdt.Minute := 0;
+cdt.Second := 0;
+cdt.Milliseconds := 0;
+cdt.dwHighMsec := 0;
+cdt.dwLowMSecs := 0;
+
+ctex(SystemTime := syt, TimeDate := cdt);
+
+GetCurrentTimeDate := cdt;
+
+END_FUNCTION
+
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @PATH := '' *)
+(* @OBJECTFLAGS := '0, 8' *)
+(* @SYMFILEFLAGS := '4096' *)
+PROGRAM PLC_PRG
+VAR CONSTANT
+	runTests : BOOL := FALSE; (* true - запуск тестов, false - рабочий режим *)
+	beep_half_period : TIME := t#100ms; (* полупериод звукового сигнала, т.е. длительность звучания и паузы *)
+END_VAR
+VAR
+	q : BOOL;
+	firstPass : BOOL := TRUE;
+
+	button AT %IX0.0.0.0 : BOOL; (* нормально разомкнутый контакт кнопки открывания двери - дискретный вход 1 *)
+	lock AT %QD0.1.0 : REAL; (* нормально замкнутый контакт реле открывания замка - ВУ 1 *)
+
+	lock_timeout AT %QD2.0.0 : DWORD; (* конф. параметр "время открытия замка, сек" *)
+
+	el : eLock;
+END_VAR
+
+(* @END_DECLARATION := '0' *)
+
+IF runTests THEN
+	;
+	tests();
+ELSE
+	IF firstPass THEN
+		ClearScreen(0);
+		SetWorkScreen(0);
+	END_IF
+
+	el(
+		button := button, lock_timeout := DWORD_TO_TIME(lock_timeout * 1000), beep_half_period := beep_half_period, currentDateTime := GetCurrentTimeDate(),
+		lock := lock, lines := displayLines
+	);
+
+	ShowString(0, 0, 0, displayLines[0]);
+	ShowString(0, 0, 1, displayLines[1]);
+
+	IF el.beep THEN
+		BeepForTimeUser(time_ms := TIME_TO_INT(beep_half_period), freq := 500);
+	END_IF
+
+	firstPass := FALSE;
+END_IF
+
+END_PROGRAM
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @PATH := '' *)
+(* @OBJECTFLAGS := '0, 8' *)
+TYPE DISPLAY_LINE : STRING[16];
+END_TYPE
+
+(* @END_DECLARATION := '0' *)
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @PATH := '' *)
+(* @OBJECTFLAGS := '0, 8' *)
+TYPE DISPLAY_LINES :
+	ARRAY[0..1] OF DISPLAY_LINE;
+END_TYPE
+
+(* @END_DECLARATION := '0' *)
+
+(* @PATH := '' *)
+
+VISUALISATION tests _VISU_TYPES : 1,1
+_BG_BMP : ''
+_TEXT : 5
+_PAINTZOOM : 100
+
+_SIMPLE : 0
+_LINEWIDTH : 2
+_NOCOLORS : 1,1
+_POS : 30,30,471,111,250,70
+_COLORS : 16777215,0,16777215,0,0
+_VARIABLES : '','','','','','','',''
+_THRESH : '','','',''
+_DSP : '','Дисплей',''
+_ZOOM : ''
+_INPUT : 0
+_TEXT : 0,4294967284,400,0,0,0,0,204
+_FONT : ''
+_EXEC : ''
+_TEXTVARIABLES : '','','','',''
+_COLORVARIABLES : '','','','','',''
+_ACCESSLEVELS : 2,2,2,2,2,2,2,2
+_OBJECT : 0,0
+_THRESH2 : '','','',''
+_INPUTTYPE : '','',''
+_HIDDENINPUT : 0
+_END_ELEM
+(* @TEXTSCALINGVARS := '_TEXTSCALINGVARS: $'$',$'$'' *)
+(* @EXTENDEDSIMPLESHAPE := '_SIMPLE: 0' *)
+(* @INPUTTAPFALSE := '_INPUTTAPFALSE: 0' *)
+
+_SIMPLE : 0
+_LINEWIDTH : 0
+_NOCOLORS : 1,1
+_POS : 40,50,461,71,250,60
+_COLORS : 16777215,0,16777215,0,0
+_VARIABLES : '','','','','','','',''
+_THRESH : '','','',''
+_DSP : 'displayLines[0]','%s',''
+_ZOOM : ''
+_INPUT : 0
+_TEXT : 4,4294967284,400,0,1,0,0,204
+_FONT : ''
+_EXEC : ''
+_TEXTVARIABLES : '','','','',''
+_COLORVARIABLES : '','','','','',''
+_ACCESSLEVELS : 2,2,2,2,2,2,2,2
+_OBJECT : 0,0
+_THRESH2 : '','','',''
+_INPUTTYPE : '','',''
+_HIDDENINPUT : 0
+_END_ELEM
+(* @TEXTSCALINGVARS := '_TEXTSCALINGVARS: $'$',$'$'' *)
+(* @EXTENDEDSIMPLESHAPE := '_SIMPLE: 0' *)
+(* @INPUTTAPFALSE := '_INPUTTAPFALSE: 0' *)
+
+_SIMPLE : 0
+_LINEWIDTH : 0
+_NOCOLORS : 1,1
+_POS : 40,80,461,101,250,90
+_COLORS : 16777215,0,16777215,0,0
+_VARIABLES : '','','','','','','',''
+_THRESH : '','','',''
+_DSP : 'displayLines[1]','%s',''
+_ZOOM : ''
+_INPUT : 0
+_TEXT : 4,4294967284,400,0,2,0,0,204
+_FONT : ''
+_EXEC : ''
+_TEXTVARIABLES : '','','','',''
+_COLORVARIABLES : '','','','','',''
+_ACCESSLEVELS : 2,2,2,2,2,2,2,2
+_OBJECT : 0,0
+_THRESH2 : '','','',''
+_INPUTTYPE : '','',''
+_HIDDENINPUT : 0
+_END_ELEM
+(* @TEXTSCALINGVARS := '_TEXTSCALINGVARS: $'$',$'$'' *)
+(* @EXTENDEDSIMPLESHAPE := '_SIMPLE: 0' *)
+(* @INPUTTAPFALSE := '_INPUTTAPFALSE: 0' *)
+
+_SIMPLE : 0
+_LINEWIDTH : 0
+_NOCOLORS : 1,1
+_POS : 30,130,191,181,110,155
+_COLORS : 16777215,0,8421631,0,0
+_VARIABLES : '','','','','','','',''
+_THRESH : '','tests.testInitialStateOk = -1','',''
+_DSP : 'tests.testInitialStateOk','testInitialState %s',''
+_ZOOM : ''
+_INPUT : 0
+_TEXT : 5,4294967284,400,0,3,0,0,204
+_FONT : ''
+_EXEC : ''
+_TEXTVARIABLES : '','','','',''
+_COLORVARIABLES : '','','','','',''
+_ACCESSLEVELS : 2,2,2,2,2,2,2,2
+_OBJECT : 0,0
+_THRESH2 : '','','',''
+_INPUTTYPE : '','',''
+_HIDDENINPUT : 0
+_END_ELEM
+(* @TEXTSCALINGVARS := '_TEXTSCALINGVARS: $'$',$'$'' *)
+(* @EXTENDEDSIMPLESHAPE := '_SIMPLE: 0' *)
+(* @INPUTTAPFALSE := '_INPUTTAPFALSE: 0' *)
+
+_SIMPLE : 0
+_LINEWIDTH : 0
+_NOCOLORS : 1,1
+_POS : 30,190,191,241,110,215
+_COLORS : 16777215,0,8421631,0,0
+_VARIABLES : '','','','','','','',''
+_THRESH : '','tests.testButtonPressedOk = -1','',''
+_DSP : 'tests.testButtonPressedOk','testButtonPressed %s',''
+_ZOOM : ''
+_INPUT : 0
+_TEXT : 5,4294967284,400,0,4,0,0,204
+_FONT : ''
+_EXEC : ''
+_TEXTVARIABLES : '','','','',''
+_COLORVARIABLES : '','','','','',''
+_ACCESSLEVELS : 2,2,2,2,2,2,2,2
+_OBJECT : 0,0
+_THRESH2 : '','','',''
+_INPUTTYPE : '','',''
+_HIDDENINPUT : 0
+_END_ELEM
+(* @TEXTSCALINGVARS := '_TEXTSCALINGVARS: $'$',$'$'' *)
+(* @EXTENDEDSIMPLESHAPE := '_SIMPLE: 0' *)
+(* @INPUTTAPFALSE := '_INPUTTAPFALSE: 0' *)
+_KEYINFOLIST : 0
+END_VISUALISATION
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @GLOBAL_VARIABLE_LIST := 'Global_Variables' *)
+(* @PATH := '' *)
+(* @OBJECTFLAGS := '0, 8' *)
+(* @SYMFILEFLAGS := '2048' *)
+VAR_GLOBAL
+	displayLines : DISPLAY_LINES;
+END_VAR
+
+(* @OBJECT_END := 'Global_Variables' *)
+(* @CONNECTIONS := Global_Variables
+FILENAME : ''
+FILETIME : 0
+EXPORT : 0
+NUMOFCONNECTIONS : 0
+*)
+
+(* @NESTEDCOMMENTS := 'Yes' *)
+(* @GLOBAL_VARIABLE_LIST := 'Variable_Configuration' *)
+(* @PATH := '' *)
+(* @OBJECTFLAGS := '0, 8' *)
+(* @SYMFILEFLAGS := '2048' *)
+VAR_CONFIG
+END_VAR
+
+(* @OBJECT_END := 'Variable_Configuration' *)
+(* @CONNECTIONS := Variable_Configuration
+FILENAME : ''
+FILETIME : 0
+EXPORT : 0
+NUMOFCONNECTIONS : 0
+*)
+
+PLC_CONFIGURATION
+_GLOBAL
+_VERSION: 3
+_AUTOADR: 1
+_CHECKADR: 1
+_SAVECONFIGFILESINPROJECT: 1
+_END_GLOBAL
+
+_MODULE: '3S'
+_SECTION_NAME: 'Root'
+_INDEX_IN_PARENT: '-1'
+_MODULE_NAME: 'PLC63'
+_NODE_ID: -1
+_IECIN: %IB0
+_IECOUT: %QB0
+_IECDIAG: %MB0
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NМеню ПЛК63#A0'
+_PARAM 2: 0, '10'
+_PARAM 3: 0, '1000'
+_END_PARAMETER
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID10050'
+_INDEX_IN_PARENT: '1'
+_MODULE_NAME: 'Configuration'
+_NODE_ID: 0
+_IECIN: %IB0
+_IECOUT: %QB0
+_IECDIAG: %MB0
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NКонфигурация#A0'
+_END_PARAMETER
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID10051'
+_INDEX_IN_PARENT: '1'
+_MODULE_NAME: 'DInputs'
+_NODE_ID: 0
+_IECIN: %IB0.0
+_IECOUT: %QB0.0
+_IECDIAG: %MB0.0
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NДискретные Вх.#A0'
+_END_PARAMETER
+
+_CHANNEL
+_SECTION_NAME: 'DInput'
+_INDEX_IN_PARENT: '1'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Битовая маска входов'
+_CHANNEL_MODE: 'I'
+_IECADR: %IB0.0.0
+
+_PARAMETER
+_PARAM 1: 0, '#NСост.Дискр.Вх.#Fr.Cn#H2D26#A3#T02#O#B0120#V2'
+_PARAM 2: 0, '#NЛогика Дискр.Вх#Finv.D#B0121#A0#V2#T02#D00#MFF'
+_PARAM 3: 0, '#NПост.Ф.ДребКонт#FTin.F#B0122#A0#U0017#T02#D0A#MFF'
+_END_PARAMETER
+_BIT 0: %IX0.0.0.0 '' 'Bit 0'
+_BIT 1: %IX0.0.0.1 '' 'Bit 1'
+_BIT 2: %IX0.0.0.2 '' 'Bit 2'
+_BIT 3: %IX0.0.0.3 '' 'Bit 3'
+_BIT 4: %IX0.0.0.4 '' 'Bit 4'
+_BIT 5: %IX0.0.0.5 '' 'Bit 5'
+_BIT 6: %IX0.0.0.6 '' 'Bit 6'
+_BIT 7: %IX0.0.0.7 '' 'Bit 7'
+_END_CHANNEL
+_END_MODULE
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID10057'
+_INDEX_IN_PARENT: '2'
+_MODULE_NAME: 'Outputs'
+_NODE_ID: 1
+_IECIN: %IB0.1
+_IECOUT: %QB0.1
+_IECDIAG: %MB0.1
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NВУ#A0'
+_END_PARAMETER
+
+_CHANNEL
+_SECTION_NAME: 'AnalogOutput0'
+_INDEX_IN_PARENT: '1'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Выход 1'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QD0.1.0
+
+_PARAMETER
+_PARAM 1: 0, '#NСост.ВУ1#Fr.oe#HE894#I00#A0#T00#C3#M+1.00E+00#O#B0000'
+_PARAM 2: 0, '#NПериод ШИМ ВУ1#Fthpd#H7BFE#I00#A0#U0017#T01#D03E8#MFDE8#L0002#B0123'
+_PARAM 3: 0, '#NМин.имп.ШИМ ВУ1#Ft.L#H07AA#I00#A0#U0017#T01#D0032#M1388#L0001#B0129'
+_PARAM 4: 0, '#NБезоп.сост.ВУ1#FO.ALr#HDC64#I00#A0#T00#C3#D+0.00E+00#M+1.00E+00#B000C'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogOutput1'
+_INDEX_IN_PARENT: '2'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Выход 2'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QD0.1.1
+
+_PARAMETER
+_PARAM 1: 0, '#NСост.ВУ2#Fr.oe#I01#B0002#A0#O#C3#T00#M+1.00E+00'
+_PARAM 2: 0, '#NПериод ШИМ ВУ2#Fthpd#I01#B0124#A0#U0017#T01#D03E8#L0002#MFDE8'
+_PARAM 3: 0, '#NМин.имп.ШИМ ВУ2#Ft.L#I01#B012A#A0#U0017#T01#D0032#L0001#M1388'
+_PARAM 4: 0, '#NБезоп.сост.ВУ2#FO.ALr#I01#B000E#A0#C3#T00#D+0.00E+00#M+1.00E+00'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogOutput2'
+_INDEX_IN_PARENT: '3'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Выход 3'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QD0.1.2
+
+_PARAMETER
+_PARAM 1: 0, '#NСост.ВУ3#Fr.oe#I02#B0004#A0#O#C3#T00#M+1.00E+00'
+_PARAM 2: 0, '#NПериод ШИМ ВУ3#Fthpd#I02#B0125#A0#U0017#T01#D03E8#L0002#MFDE8'
+_PARAM 3: 0, '#NМин.имп.ШИМ ВУ3#Ft.L#I02#B012B#A0#U0017#T01#D0032#L0001#M1388'
+_PARAM 4: 0, '#NБезоп.сост.ВУ3#FO.ALr#I02#B0010#A0#C3#T00#D+0.00E+00#M+1.00E+00'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogOutput3'
+_INDEX_IN_PARENT: '4'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Выход 4'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QD0.1.3
+
+_PARAMETER
+_PARAM 1: 0, '#NСост.ВУ4#Fr.oe#I03#B0006#A0#O#C3#T00#M+1.00E+00'
+_PARAM 2: 0, '#NПериод ШИМ ВУ4#Fthpd#I03#B0126#A0#U0017#T01#D03E8#L0002#MFDE8'
+_PARAM 3: 0, '#NМин.имп.ШИМ ВУ4#Ft.L#I03#B012C#A0#U0017#T01#D0032#L0001#M1388'
+_PARAM 4: 0, '#NБезоп.сост.ВУ4#FO.ALr#I03#B0012#A0#C3#T00#D+0.00E+00#M+1.00E+00'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogOutput4'
+_INDEX_IN_PARENT: '5'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Выход 5'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QD0.1.4
+
+_PARAMETER
+_PARAM 1: 0, '#NСост.ВУ5#Fr.oe#I04#B0008#A0#O#C3#T00#M+1.00E+00'
+_PARAM 2: 0, '#NПериод ШИМ ВУ5#Fthpd#I04#B0127#A0#U0017#T01#D03E8#L0002#MFDE8'
+_PARAM 3: 0, '#NМин.имп.ШИМ ВУ5#Ft.L#I04#B012D#A0#U0017#T01#D0032#L0001#M1388'
+_PARAM 4: 0, '#NБезоп.сост.ВУ5#FO.ALr#I04#B0014#A0#C3#T00#D+0.00E+00#M+1.00E+00'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogOutput5'
+_INDEX_IN_PARENT: '6'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Выход 6'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QD0.1.5
+
+_PARAMETER
+_PARAM 1: 0, '#NСост.ВУ6#Fr.oe#I05#B000A#A0#O#C3#T00#M+1.00E+00'
+_PARAM 2: 0, '#NПериод ШИМ ВУ6#Fthpd#I05#B0128#A0#U0017#T01#D03E8#L0002#MFDE8'
+_PARAM 3: 0, '#NМин.имп.ШИМ ВУ6#Ft.L#I05#A0#B012E#U0017#T01#D0032#L0001#M1388'
+_PARAM 4: 0, '#NБезоп.сост.ВУ6#FO.ALr#I05#B0016#A0#C3#T00#D+0.00E+00#M+1.00E+00'
+_END_PARAMETER
+_END_CHANNEL
+_END_MODULE
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID10055'
+_INDEX_IN_PARENT: '3'
+_MODULE_NAME: 'AInputs'
+_NODE_ID: 2
+_IECIN: %IB0.2
+_IECOUT: %QB0.2
+_IECDIAG: %MB0.2
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NАналоговые Вх.#A0'
+_PARAM 2: 0, '#NКоррекция ХС#Fcj-.c#B012F#A0#U002A#T03#D01'
+_END_PARAMETER
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInput0'
+_INDEX_IN_PARENT: '1'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Аналоговый вход 1'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.0
+
+_PARAMETER
+_PARAM 1: 0, '#NВход 1#Fread#I00#B0018#C2#A3#O#V3#T10'
+_PARAM 2: 0, '#NТип датчика 1#Fin-t#I00#B0130#A0#U002F#T04#D01#M15'
+_PARAM 3: 0, '#NПост. фильтра 1#Fin.Fd#I00#B0138#A0#U0018#T01#D0005#M0708'
+_PARAM 4: 0, '#NПолоса Фильтра1#Fin.FG#I00#B0028#A0#T00#D+1.00E+01#L+0.00E+01#M+9.99E+03'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInputTime0'
+_INDEX_IN_PARENT: '2'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Время измерения 1'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.1
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInput1'
+_INDEX_IN_PARENT: '3'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Аналоговый вход 2'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.2
+
+_PARAMETER
+_PARAM 1: 0, '#NВход 2#Fread#I01#B001A#C2#A3#O#V3#T10'
+_PARAM 2: 0, '#NТип датчика 2#Fin-t#I01#B0131#A0#U002F#T04#D01#M15'
+_PARAM 3: 0, '#NПост. фильтра 2#Fin.Fd#I01#B0139#A0#U0018#T01#D0005#M0708'
+_PARAM 4: 0, '#NПолоса Фильтра2#Fin.FG#I01#B002A#A0#T00#D+1.00E+01#L+0.00E+01#M+9.99E+03'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInputTime1'
+_INDEX_IN_PARENT: '4'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Время измерения 2'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.3
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInput2'
+_INDEX_IN_PARENT: '5'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Аналоговый вход 3'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.4
+
+_PARAMETER
+_PARAM 1: 0, '#NВход 3#Fread#I02#B001C#C2#A3#O#V3#T10'
+_PARAM 2: 0, '#NТип датчика 3#Fin-t#I02#B0132#A0#U002F#T04#D01#M15'
+_PARAM 3: 0, '#NПост. фильтра 3#Fin.Fd#I02#B013A#A0#U0018#T01#D0005#M0708'
+_PARAM 4: 0, '#NПолоса Фильтра3#Fin.FG#I02#B002C#A0#T00#D+1.00E+01#L+0.00E+01#M+9.99E+03'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInputTime2'
+_INDEX_IN_PARENT: '6'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Время измерения 3'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.5
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInput3'
+_INDEX_IN_PARENT: '7'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Аналоговый вход 4'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.6
+
+_PARAMETER
+_PARAM 1: 0, '#NВход 4#Fread#I03#B001E#C2#A3#O#V3#T10'
+_PARAM 2: 0, '#NТип датчика 4#Fin-t#I03#B0133#A0#U002F#T04#D01#M15'
+_PARAM 3: 0, '#NПост. фильтра 4#Fin.Fd#I03#B013B#A0#U0018#T01#D0005#M0708'
+_PARAM 4: 0, '#NПолоса Фильтра4#Fin.FG#I03#A0#B002E#T00#D+1.00E+01#L+0.00E+01#M+9.99E+03'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInputTime3'
+_INDEX_IN_PARENT: '8'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Время измерения 4'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.7
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInput4'
+_INDEX_IN_PARENT: '9'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Аналоговый вход 5'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.8
+
+_PARAMETER
+_PARAM 1: 0, '#NВход 5#Fread#I04#B0020#C2#A3#O#V3#T10'
+_PARAM 2: 0, '#NТип датчика 5#Fin-t#I04#B0134#A0#U002F#T04#D01#M15'
+_PARAM 3: 0, '#NПост. фильтра 5#Fin.Fd#I04#B013C#A0#U0018#T01#D0005#M0708'
+_PARAM 4: 0, '#NПолоса Фильтра5#Fin.FG#I04#B0030#A0#T00#D+1.00E+01#L+0.00E+01#M+9.99E+03'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInputTime4'
+_INDEX_IN_PARENT: '10'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Время измерения 5'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.9
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInput5'
+_INDEX_IN_PARENT: '11'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Аналоговый вход 6'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.10
+
+_PARAMETER
+_PARAM 1: 0, '#NВход 6#Fread#I05#B0022#C2#A3#O#V3#T10'
+_PARAM 2: 0, '#NТип датчика 6#Fin-t#I05#B0135#A0#U002F#T04#D01#M15'
+_PARAM 3: 0, '#NПост. фильтра 6#Fin.Fd#I05#B013D#A0#U0018#T01#D0005#M0708'
+_PARAM 4: 0, '#NПолоса Фильтра6#Fin.FG#I05#B0032#A0#T00#D+1.00E+01#L+0.00E+01#M+9.99E+03'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInputTime5'
+_INDEX_IN_PARENT: '12'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Время измерения 6'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.11
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInput6'
+_INDEX_IN_PARENT: '13'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Аналоговый вход 7'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.12
+
+_PARAMETER
+_PARAM 1: 0, '#NВход 7#Fread#I06#B0024#C2#A3#O#V3#T10'
+_PARAM 2: 0, '#NТип датчика 7#Fin-t#I06#B0136#A0#U002F#T04#D01#M15'
+_PARAM 3: 0, '#NПост. фильтра 7#Fin.Fd#I06#B013E#A0#U0018#T01#D0005#M0708'
+_PARAM 4: 0, '#NПолоса Фильтра7#Fin.FG#I06#B0034#A0#T00#D+1.00E+01#L+0.00E+01#M+9.99E+03'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInputTime6'
+_INDEX_IN_PARENT: '14'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Время измерения 7'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.13
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInput7'
+_INDEX_IN_PARENT: '15'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Аналоговый вход 8'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.14
+
+_PARAMETER
+_PARAM 1: 0, '#NВход 8#Fread#I07#B0026#C2#A3#O#V3#T10'
+_PARAM 2: 0, '#NТип датчика 8#Fin-t#I07#B0137#A0#U002F#T04#D01#M15'
+_PARAM 3: 0, '#NПост. фильтра 8#Fin.Fd#I07#B013F#A0#U0018#T01#D0005#M0708'
+_PARAM 4: 0, '#NПолоса Фильтра8#Fin.FG#I07#B0036#A0#T00#D+1.00E+01#L+0.00E+01#M+9.99E+03'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'AnalogInputTime7'
+_INDEX_IN_PARENT: '16'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Время измерения 8'
+_CHANNEL_MODE: 'I'
+_IECADR: %ID0.2.15
+_END_CHANNEL
+_END_MODULE
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID10053'
+_INDEX_IN_PARENT: '4'
+_MODULE_NAME: 'MR1_Outputs'
+_NODE_ID: 3
+_IECIN: %IB0.3
+_IECOUT: %QB0.3
+_IECDIAG: %MB0.3
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NВУ МР1#A0'
+_END_PARAMETER
+
+_CHANNEL
+_SECTION_NAME: 'DOutput'
+_INDEX_IN_PARENT: '1'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'ВУ МР1'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QB0.3.0
+
+_PARAMETER
+_PARAM 1: 0, '#NСост.ВУ МР1#Fr.oe.s#B0140#A0#O#V2#T02'
+_END_PARAMETER
+_BIT 0: %QX0.3.0.0 '' 'Bit 0'
+_BIT 1: %QX0.3.0.1 '' 'Bit 1'
+_BIT 2: %QX0.3.0.2 '' 'Bit 2'
+_BIT 3: %QX0.3.0.3 '' 'Bit 3'
+_BIT 4: %QX0.3.0.4 '' 'Bit 4'
+_BIT 5: %QX0.3.0.5 '' 'Bit 5'
+_BIT 6: %QX0.3.0.6 '' 'Bit 6'
+_BIT 7: %QX0.3.0.7 '' 'Bit 7'
+_END_CHANNEL
+_END_MODULE
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID10059'
+_INDEX_IN_PARENT: '5'
+_MODULE_NAME: 'Additional'
+_NODE_ID: 4
+_IECIN: %IB0.4
+_IECOUT: %QB0.4
+_IECDIAG: %MB0.4
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NДоп.пар-ры#A0'
+_END_PARAMETER
+
+_CHANNEL
+_SECTION_NAME: 'LCDLight'
+_INDEX_IN_PARENT: '1'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Подсветка'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QB0.4.0
+
+_PARAMETER
+_PARAM 1: 0, '#NЯрк.подсв.ЖКИ#Find.i#B0141#A0#T02#D2D#M32'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'LCDContrast'
+_INDEX_IN_PARENT: '2'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Контраст'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QB0.4.1
+
+_PARAMETER
+_PARAM 1: 0, '#NКонтраст ЖКИ#Find.C#B0142#A0#T02#D19#L05#M20'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'KBD'
+_INDEX_IN_PARENT: '3'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Клавиатура'
+_CHANNEL_MODE: 'I'
+_IECADR: %IB0.4.2
+
+_PARAMETER
+_PARAM 1: 0, '#NСост.клавиатуры#Fkbrd#B0143#A3#O#T02'
+_PARAM 2: 0, '#NЗвук кнопок#Fbeep#B0144#A0#U002A#T03#D01'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'RTS'
+_INDEX_IN_PARENT: '4'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Часы контроллера'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QD0.4.3
+
+_PARAMETER
+_PARAM 1: 0, '#NВремя и дата#FrtC#B0038#A0#O#T05'
+_END_PARAMETER
+_END_CHANNEL
+_END_MODULE
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID10060'
+_INDEX_IN_PARENT: '6'
+_MODULE_NAME: 'Versions'
+_NODE_ID: 5
+_IECIN: %IB0.5
+_IECOUT: %QB0.5
+_IECDIAG: %MB0.5
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NВерсииПрошивок#A0'
+_END_PARAMETER
+
+_CHANNEL
+_SECTION_NAME: 'DevName'
+_INDEX_IN_PARENT: '1'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Имя устройства'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QB0.5.0
+
+_PARAMETER
+_PARAM 1: 0, '#NИмя устройства#Fdev#B003A#A3#O#T08'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'HardVer'
+_INDEX_IN_PARENT: '2'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Прошивка'
+_CHANNEL_MODE: 'I'
+_IECADR: %IB0.5.1
+
+_PARAMETER
+_PARAM 1: 0, '#NВерсия прошивки#Fver#B0042#A3#O#T08'
+_END_PARAMETER
+_END_CHANNEL
+
+_CHANNEL
+_SECTION_NAME: 'SoftVer'
+_INDEX_IN_PARENT: '3'
+_SYMBOLIC_NAME: ''
+_COMMENT: 'Программа'
+_CHANNEL_MODE: 'Q'
+_IECADR: %QB0.5.2
+
+_PARAMETER
+_PARAM 1: 0, '#NВерсияПрограммы#Fp.ver#B004A#A3#O#T08'
+_END_PARAMETER
+_END_CHANNEL
+_END_MODULE
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID10061'
+_INDEX_IN_PARENT: '7'
+_MODULE_NAME: 'RS-485'
+_NODE_ID: 6
+_IECIN: %IB0.6
+_IECOUT: %QB0.6
+_IECDIAG: %MB0.6
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NНастр.RS-485#A0'
+_PARAM 2: 0, '#NСкорость#FbPS#HB760#A0#U0046#T04#D00#M09#B0145'
+_PARAM 3: 0, '#NДлина слова#FLen#H523F#A0#U0005#T04#D03#M03#B0146'
+_PARAM 4: 0, '#NЧётность#Fprty#HE8C4#A0#U009A#T04#D04#M04#B0147'
+_PARAM 5: 0, '#NСтоп биты#Fsbit#HB72E#A0#U00A1#T04#D00#M02#B0148'
+_PARAM 6: 0, '#NДлина адреса#Fa.len#H1ED2#A0#U0055#T03#D00#B0149'
+_PARAM 7: 0, '#NАдрес прибора#FAddr#H9F62#A0#T01#D0010#M07FF#B014A'
+_PARAM 8: 0, '#NЗадержка ответа#FRs.dl#HCBF5#A0#U0017#T02#D05#M32#B014B'
+_END_PARAMETER
+_END_MODULE
+_END_MODULE
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID10100'
+_INDEX_IN_PARENT: '2'
+_MODULE_NAME: 'WorkInd'
+_NODE_ID: 1
+_IECIN: %IB1
+_IECOUT: %QB1
+_IECDIAG: %MB1
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '6'
+_END_PARAMETER
+_END_MODULE
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID11000'
+_INDEX_IN_PARENT: '3'
+_MODULE_NAME: 'SubMenu'
+_NODE_ID: 2
+_IECIN: %IB2
+_IECOUT: %QB2
+_IECDIAG: %MB2
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NПараметры#A0'
+_END_PARAMETER
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID11402'
+_INDEX_IN_PARENT: '1'
+_MODULE_NAME: 'TimeP'
+_NODE_ID: 0
+_IECIN: %IB2.0
+_IECOUT: %QB2.0
+_IECDIAG: %MB2.0
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_CHANNEL
+_SECTION_NAME: 'TimePar'
+_INDEX_IN_PARENT: '1'
+_SYMBOLIC_NAME: ''
+_COMMENT: ''
+_CHANNEL_MODE: 'Q'
+_IECADR: %QD2.0.0
+
+_PARAMETER
+_PARAM 1: 0, '#NВр.Откр.Замка#A0#T07#D000005#M000015#L000005#B0054'
+_END_PARAMETER
+_END_CHANNEL
+_END_MODULE
+_END_MODULE
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID11000'
+_INDEX_IN_PARENT: '4'
+_MODULE_NAME: 'SubMenu'
+_NODE_ID: 3
+_IECIN: %IB3
+_IECOUT: %QB3
+_IECDIAG: %MB3
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NВетка1#A0'
+_END_PARAMETER
+_END_MODULE
+
+_MODULE: '3S'
+_SECTION_NAME: 'ID11000'
+_INDEX_IN_PARENT: '5'
+_MODULE_NAME: 'SubMenu'
+_NODE_ID: 4
+_IECIN: %IB4
+_IECOUT: %QB4
+_IECDIAG: %MB4
+_DOWNLOAD: 1
+_EXCLUDEFROMAUTOADR: 0
+_COMMENT: ''
+
+_PARAMETER
+_PARAM 1: 0, '#NВетка2#A0'
+_END_PARAMETER
+_END_MODULE
+_END_MODULE
+PLC_END
+
+
+RESOURCE
+
+END_RESOURCE
+
+
+_ALARMCONFIG
+_ALARMCONFIGNEXTTEXTID : 10002
+_ALARMCONFIGFORMATS : 'HH$':$'mm$':$'ss','dd$'-$'MM$'-$'yyyy'
+_ALARMCLASSLIST : 1
+_ALARMCLASSID : 0
+_ALARMCLASSACKTYPE : 0
+_ALARMCLASSNAME : 'DEFAULT'
+_ALARMCLASSDESCRIPTION : ''
+_ALARMCLASSBGCOLORS : 16777215,16777215,16777215
+_ALARMCLASSTEXTCOLORS : 3394560,255,16711680
+_ALARMCLASSBITMAPS : '','',''
+_ALARMACTIONLIST : 0
+(* @ALARMCLASSRESETCOLORS := '_ALARMCLASSRESETCOLORS: 33023,16777215' *)
+(* @ALARMCLASSRESETBITMAP := '_ALARMCLASSRESETBITMAP: $'$'' *)
+_ALARMGROUPLISTNAME : 'Система'
+_ALARMGROUPPATH : 'Система'
+_ALARMGROUPLIST : 0
+_VISUALSETTINGSFLAGS : 0,0,0,0
+_VISUALSETTINGSFLAGS : '','',''
+_VISUALSETTINGSDYNTEXTFILECOUNT : 0
+
+(* @ALARMCONFIGFLAGS := '_ALARMCONFIGFLAGS: 4' *)
+(* @ALARMCONFIGGLOBALDB_STR := '_ALARMCONFIGGLOBALDB_STRINGS: $'$',$'$',$'$',$'$'' *)
+(* @ALARMCONFIGGLOBALDB_NUM := '_ALARMCONFIGGLOBALDB_NUMBERS: 0,0' *)
+_END_ALARMCONFIG
+
+
+LIBRARY
+Arm7_Specific.lib 12.5.10 15:26:52
+(* @LIBRARYSYMFILEINFO := '0' *)
+NumOfPOUs: 4
+GetOutputType: 2048
+READ_BY_HASH: 2048
+SAVE_PAR_ATTRIB: 2048
+SAVE_PARAMETER: 2048
+NumOfGVLs: 1
+Global_Variables: 2048
+END_LIBRARY
+
+LIBRARY
+Sound.lib 17.10.08 11:37:02
+(* @LIBRARYSYMFILEINFO := '0' *)
+NumOfPOUs: 1
+BeepForTimeUser: 2048
+NumOfGVLs: 1
+Global_Variables: 2048
+END_LIBRARY
+
+LIBRARY
+STANDARD.LIB 4.10.05 11:14:46
+(* @LIBRARYSYMFILEINFO := '0' *)
+NumOfPOUs: 21
+CONCAT: 0
+CTD: 0
+CTU: 0
+CTUD: 0
+DELETE: 0
+F_TRIG: 0
+FIND: 0
+INSERT: 0
+LEFT: 0
+LEN: 0
+MID: 0
+R_TRIG: 0
+REPLACE: 0
+RIGHT: 0
+RS: 0
+RTC: 0
+SEMA: 0
+SR: 0
+TOF: 0
+TON: 0
+TP: 0
+NumOfGVLs: 0
+END_LIBRARY
+
+LIBRARY
+SysLibTime.lib 20.2.06 12:31:16
+(* @LIBRARYSYMFILEINFO := '0' *)
+NumOfPOUs: 2
+CurTime: 0
+CurTimeEx: 0
+NumOfGVLs: 1
+Globale_Variablen: 0
+END_LIBRARY
+
+LIBRARY
+Work_Mode.lib 26.8.10 17:51:22
+(* @LIBRARYSYMFILEINFO := '0' *)
+NumOfPOUs: 8
+ClearScreen: 2048
+GetWorkScreen: 2048
+GetWorkScreenCount: 2048
+SetWorkScreen: 2048
+SetWorkScreenCount: 2048
+ShowDint: 2048
+ShowReal: 2048
+ShowString: 2048
+NumOfGVLs: 1
+Global_Variables: 2048
+END_LIBRARY
+
+
+_WORKSPACE
+_GLOBALVISUALSETTINGS
+_VISUALSETTINGSFLAGS : 0,0,0,0
+_VISUALSETTINGSFLAGS : '','',''
+_VISUALSETTINGSDYNTEXTFILECOUNT : 0
+_VISUALBITMAPLISTCOUNT : 0
+_END_GLOBALVISUALSETTINGS
+_END_WORKSPACE

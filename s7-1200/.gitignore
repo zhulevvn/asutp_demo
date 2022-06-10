@@ -1,0 +1,9 @@
+*.*
+!.gitignore
+!*.ap17
+!*.sim17
+!*.plf
+!UserFiles/
+
+options
+segments*

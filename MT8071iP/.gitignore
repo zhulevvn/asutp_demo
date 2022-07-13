@@ -1,0 +1,5 @@
+*.*
+!.gitignore
+!*.emtp
+!*.dat
+!*.exe
